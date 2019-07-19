@@ -17,6 +17,8 @@ rootWindow::rootWindow(QString name, QWidget *parent) :
 {
     ui->setupUi(this);
 
+    qDebug()<< keyname << name;
+
     tcpsocked = new QTcpSocket(this);
 
     QString ip = "192.168.1.100";

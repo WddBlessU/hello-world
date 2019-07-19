@@ -12,38 +12,25 @@ MainWindow::MainWindow(QWidget *parent) :
     historymodel = new QSqlQueryModel(this);
     model = new QSqlQueryModel();
 
-    createDB();
-    showTable();
-
-    lThread = new loginThread;
-    sThread = new serverThread;
-    lThread->start();
-    sThread->start();
-
-    qDebug()<< this;
-    qDebug()<< sThread;
-    qDebug()<< lThread;
-}
-
-MainWindow::~MainWindow()
-{
-    delete ui;
-}
-
-void MainWindow::createDB(void){
     *db = QSqlDatabase::addDatabase("QSQLITE");
     db->setDatabaseName("APP.db");
-    bool ok = db->open();
-    if(ok == false){
-        QMessageBox::critical(this,"Error",db->lastError().text());
-        return;
-    }
+    db->open();
 
     QSqlQuery Query;
     Query.prepare("CREATE TABLE user(""id INT PRIMARY KEY NOT NULL,""name TEXT NOT NULL,""password TEXT NOT NULL,""sex TEXT NOT NULL,""age INT NOT NULL,""salary REAL NOT NULL,""level TEXT NOT NULL)");
     Query.exec();
     Query.prepare("CREATE TABLE history(""operate TEXT PRIMARY KEY NOT NULL)");
     Query.exec();
+
+    showTable();
+
+//    connect(this,SIGNAL(showDB(QSqlQueryModel* showModel)),main_addr,SLOT(showTable(QSqlQueryModel* showModel)));
+//    emit showDB(historymodel);
+}
+
+MainWindow::~MainWindow()
+{
+    delete ui;
 }
 
 void MainWindow::showTable(){
@@ -53,6 +40,7 @@ void MainWindow::showTable(){
 }
 
 QSqlQueryModel* MainWindow::search(QString user,QString* pass){
+
     QString sortstr = QString("SELECT * FROM user ""WHERE name = '%1'").arg(user);
 
     QSqlQuery Query;
@@ -66,16 +54,13 @@ QSqlQueryModel* MainWindow::search(QString user,QString* pass){
     return model;
 }
 
-void loginThread::run(){
-
-    work();
-
-    while(1){
-        QThread::msleep(100);
-    }
+void MainWindow::udpSearchSlots(QString user,QString* pass){
+     qDebug()<< this;
+    search(user,pass);
 }
-
-void loginThread::work(){
+//---------------------------------------------------
+udpOb::udpOb(void* m_addr)
+{
     QString ip = "192.168.10.184";
     QString port = "5004";
     serverip.setAddress(ip);
@@ -84,9 +69,10 @@ void loginThread::work(){
     udpSocked = new QUdpSocket(this);
     udpSocked->bind(quint16(serverport));
     connect(udpSocked,SIGNAL(readyRead()),this,SLOT(confirmSlots()));
+    connect(this,SIGNAL(udpsearch(QString,QString*)),(MainWindow*)m_addr,SLOT(udpSearchSlots(QString,QString*)));
 }
 
-void loginThread::confirmSlots(){
+void udpOb::confirmSlots(){
     LogMess mess;
     if(udpSocked->hasPendingDatagrams()){
         udpSocked->readDatagram((char*)&mess,sizeof(mess),&clientip,&clientport);
@@ -95,30 +81,49 @@ void loginThread::confirmSlots(){
     }
 
     QString pass;
-    MainWindow temp;
-    temp.search(mess.user,&pass);
+
+    emit udpsearch(mess.user,&pass);
+
+    qDebug()<<  "yes";
+
     if(!(QString::compare(pass,mess.password))){
+        qDebug()<<  "yes";
+
         udpSocked->writeDatagram("OK",clientip,clientport);
     }else{
+        qDebug()<<  "yes";
+
         udpSocked->writeDatagram("NO",clientip,clientport);
     }
 }
 
-void serverThread::run(){
+tcpOb::tcpOb()
+{
     QString ip = "192.168.10.184";
     QString port = "5004";
     serverip.setAddress(ip);
     serverport = port.toShort();
 
     tcpserver = new QTcpServer();
-    connect(tcpserver,SIGNAL(newConnection()),this,SLOT(newConnection_Slots()));
-
     tcpserver->listen(serverip,serverport);
-    while(1){
-        QThread::msleep(100);
-    }
+//  connect(tcpserver,SIGNAL(newConnection()),this,SLOT(newConnection_Slots()));
 }
 
+void loginThread::run(){
+    obj = new udpOb(main_addr);
+
+//  connect(obj->udpSocked, SIGNAL(readyRead()),this,SLOT(confirmSlots()),Qt::DirectConnection);
+
+    exec();
+}
+
+void serverThread::run(){
+    obj = new tcpOb();
+//  connect(obj->tcpserver,SIGNAL(newConnection()),this,SLOT(newConnection_Slots()),Qt::DirectConnection);
+
+    exec();
+}
+/*
 void serverThread::newConnection_Slots()
 {
     QTcpSocket* tcpClientSocked = tcpserver->nextPendingConnection();
@@ -142,3 +147,4 @@ void serverThread::messageRev_Slots(){
         }
     }
 }
+*/

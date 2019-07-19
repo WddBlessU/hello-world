@@ -35,48 +35,7 @@ struct person{
     float salary;
     QString level;
 };
-
-class loginThread : public QThread
-{
-    Q_OBJECT
-
-protected:
-    void run();
-
-private slots:
-   void confirmSlots();
-
-private:
-    void work();
-
-private:
-    quint16 serverport;
-    quint16 clientport;
-    QHostAddress serverip;
-    QHostAddress clientip;
-    QUdpSocket* udpSocked;
-};
-
-class serverThread : public QThread
-{
-    Q_OBJECT
-
-protected:
-    void run();
-
-private slots:
-    void newConnection_Slots();
-
-    void messageRev_Slots();
-
-private:
-    quint16 serverport;
-    QHostAddress serverip;
-    QTcpServer *tcpserver;
-
-    QList <QTcpSocket*> tcpClientList;
-};
-
+//-----------------------------------MainWindow
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -85,10 +44,12 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
-public:
-    void createDB();
     void showTable();
+
     QSqlQueryModel* search(QString user,QString* pass);
+
+public slots:
+    void udpSearchSlots(QString user,QString* pass);
 
 private:
     Ui::MainWindow *ui;
@@ -97,9 +58,82 @@ private:
     QSqlQueryModel* usermodel;
     QSqlQueryModel* historymodel;
     QSqlQueryModel* model;
+};
+//-----------------------------------udp server
+class udpOb : public QObject{
+    Q_OBJECT
 
-    loginThread* lThread;
-    serverThread* sThread;
+public:
+    udpOb(void* m_addr);
+
+signals:
+    void udpsearch(QString user,QString* pass);
+
+public slots:
+    void confirmSlots();
+
+private:
+    QUdpSocket* udpSocked;
+    QHostAddress serverip;
+    QHostAddress clientip;
+    quint16 serverport;
+    quint16 clientport;
+};
+//-----------------------------------tcp server
+class tcpOb : public QObject{
+    Q_OBJECT
+
+public:
+    tcpOb();
+    void callEmitSignal(){
+        emit someSignal();
+    }
+
+signals:
+    void someSignal();
+
+public slots:
+//    void newConnection_Slots();
+
+//    void messageRev_Slots();
+
+private:
+    QTcpServer *tcpserver;
+    QHostAddress serverip;
+    quint16 serverport;
+
+    QList <QTcpSocket*> tcpClientList;
+};
+//-----------------------------------log thread
+class loginThread : public QThread{
+    Q_OBJECT
+
+public:
+    loginThread(void* addr,QObject* parent=0) :main_addr(addr),QThread(parent){}
+    virtual ~loginThread(){
+        if (obj!=NULL) delete obj;
+    }
+
+    void run();
+
+public:
+    udpOb* obj;
+    void* main_addr;
+};
+//-----------------------------------server thread
+class serverThread : public QThread{
+    Q_OBJECT
+
+public:
+    serverThread(QObject* parent=0) : QThread(parent){}
+    virtual ~serverThread(){
+        if (obj!=NULL) delete obj;
+    }
+
+    void run();
+
+public:
+    tcpOb* obj;
 };
 
 #endif // MAINWINDOW_H
